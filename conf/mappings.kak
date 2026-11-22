@@ -8,6 +8,15 @@ map global normal <c-p> ': find '
 map -docstring 'Toggle comments on the selection' global user c ': comment-line<ret>'
 map -docstring 'Access alt file' global user o ': alt<ret>'
 
+## Project / Picker Mode (<space>p)
+
+try %{ declare-user-mode project }
+
+map -docstring 'Project / pickers' global user p ': enter-user-mode project<ret>'
+
+map -docstring 'Find files (prompt)' global project f ': find '
+map -docstring 'Grep project (prompt)' global project g ': grep '
+
 ## Window / Terminal Splits Mode (<space>w)
 
 try %{ declare-user-mode window }
@@ -35,15 +44,16 @@ map global goto p '<esc>: grep-previous-match<ret>' -docstring 'previous grep ma
 remove-hooks global user-mappings
 
 hook -group user-mappings global ModuleLoaded yazi %{
-    map -docstring 'Open file browser (yazi)' global user f ': yazi<ret>'
-    map -docstring 'Open file browser at cwd (yazi)' global user F ': yazi-cwd<ret>'
+    map -docstring 'Open file browser (yazi)' global project v ': yazi<ret>'
+    map -docstring 'Open file browser at cwd (yazi)' global project V ': yazi-cwd<ret>'
 }
 
 hook -group user-mappings global ModuleLoaded fzf %{
-    map -docstring 'Find files (fzf)' global user p ': fzf-find-edit<ret>'
-    map -docstring 'Find git files (fzf)' global user P ': fzf-edit<ret>'
+    map -docstring 'Find files (fzf)' global project f ': fzf-find-edit<ret>'
+    map -docstring 'Find git files (fzf)' global project F ': fzf-edit<ret>'
+    map -docstring 'Search project (rg + fzf)' global project g ': fzf-grep<ret>'
+    map -docstring 'Switch buffer (fzf)' global project b ': fzf-buffer<ret>'
     map -docstring 'Switch buffer (fzf)' global user b ': fzf-buffer<ret>'
-    map -docstring 'Search project (rg + fzf)' global user / ': fzf-grep<ret>'
 }
 
 hook -group user-mappings global ModuleLoaded lsp-config %{

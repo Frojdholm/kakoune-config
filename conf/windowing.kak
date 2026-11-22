@@ -30,6 +30,35 @@ define-command -override -params .. -command-completion \
     terminal-tab kak -c %val{session} -e "%arg{@}"
 }
 
+define-command -override -hidden -params 3 client-open-path %{
+    evaluate-commands %sh{
+        term_cmd=$1
+        kak_cmd=$2
+        esc_path=$(printf '%s' "$3" | sed "s/'/''/g")
+        inner_cmd="$kak_cmd -- '$esc_path'"
+        esc_inner=$(printf '%s' "$inner_cmd" | sed "s/'/''/g")
+        printf "%s kak -c %%val{session} -e '%s'\n" "$term_cmd" "$esc_inner"
+    }
+}
+
+define-command -override -params 1 -file-completion \
+    -docstring 'edit-vertical <file>: open a file in a new vertical (side-by-side) split' \
+    edit-vertical %{
+    client-open-path terminal-vertical edit %arg{1}
+}
+
+define-command -override -params 1 -file-completion \
+    -docstring 'edit-horizontal <file>: open a file in a new horizontal (stacked) split' \
+    edit-horizontal %{
+    client-open-path terminal-horizontal edit %arg{1}
+}
+
+define-command -override -params 1 -file-completion \
+    -docstring 'edit-tab <file>: open a file in a new terminal tab' \
+    edit-tab %{
+    client-open-path terminal-tab edit %arg{1}
+}
+
 define-command -override -docstring 'Open a shell in a vertical (side-by-side) split' \
     shell-vertical %{
     evaluate-commands %sh{

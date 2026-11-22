@@ -13,10 +13,10 @@ try %{ remove-highlighter global/number-lines }
 add-highlighter global/number-lines number-lines -hlcursor -separator '  '
 
 # Optional highlighters / git diff indicators (uncomment to enable)
-# try %{ remove-highlighter global/show-matching }
-# add-highlighter global/show-matching show-matching
-# hook global WinCreate ^[^*].*[^*]$ %{ git show-diff }
-# hook global BufWritePost ^[^*].*[^*]$ %{ git update-diff }
+try %{ remove-highlighter global/show-matching }
+add-highlighter global/show-matching show-matching
+hook global WinCreate ^[^*].*[^*]$ %{ git show-diff }
+hook global BufWritePost ^[^*].*[^*]$ %{ git update-diff }
 
 ## Search
 

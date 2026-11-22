@@ -56,11 +56,58 @@ enabled_layouts splits,tall,stack
 
 ### Recommended CLI Tools
 
-- [`yazi`](https://yazi-rs.github.io/) — terminal file manager (`<space>f`, `<space>F`)
-- [`fzf`](https://github.com/junegunn/fzf) — fuzzy picker (`<space>p`, `<space>P`, `<space>b`, `<space>/`)
+- [`yazi`](https://yazi-rs.github.io/) — terminal file manager (`<space>pv`, `<space>pV`)
+- [`fzf`](https://github.com/junegunn/fzf) — fuzzy picker (`<space>pf`, `<space>pF`, `<space>pg`, `<space>pb`, `<space>b`)
 - [`fd`](https://github.com/sharkdp/fd) (or `fdfind` on Ubuntu/Debian) — fast file listing
-- [`rg`](https://github.com/BurntSushi/ripgrep) — fast grep (`:grep`, `<space>/`)
+- [`rg`](https://github.com/BurntSushi/ripgrep) — fast grep (`:grep`, `<space>pg`)
 - [`kak-lsp`](https://github.com/kakoune-lsp/kakoune-lsp) — LSP client (skipped cleanly if not installed)
+
+### Yazi Splits & Tabs Setup (`~/.config/yazi/`)
+
+`yazi.kak` exposes `KAK_YAZI_ACTION_FILE` to Yazi so you can multi-select files with `<Space>` and pick how to open them right inside Yazi.
+
+1. Create a small synchronous plugin at `~/.config/yazi/plugins/kak-open.yazi/main.lua` (a `shell` command in a `run = [...]` array runs asynchronously and races with `open`, whereas `--- @sync entry` writes the action before `open` exits Yazi):
+
+```lua
+--- @sync entry
+
+return {
+	entry = function(_, job)
+		local action = (job.args and job.args[1]) or job[1]
+		local path = os.getenv("KAK_YAZI_ACTION_FILE")
+		if path and path ~= "" and action and action ~= "" then
+			local f = io.open(path, "w")
+			if f then
+				f:write(action)
+				f:close()
+			end
+		end
+		local emit = ya.emit or ya.mgr_emit or ya.manager_emit
+		emit("open", {})
+	end,
+}
+```
+
+2. Add the keybindings to `~/.config/yazi/keymap.toml` (for Yazi < v25, use `[[manager.prepend_keymap]]`):
+
+```toml
+[[mgr.prepend_keymap]]
+on   = "<C-v>"
+run  = "plugin kak-open -- vertical"
+desc = "Open selected file(s) in Kakoune vertical split"
+
+[[mgr.prepend_keymap]]
+on   = "<C-x>"
+run  = "plugin kak-open -- horizontal"
+desc = "Open selected file(s) in Kakoune horizontal split"
+
+[[mgr.prepend_keymap]]
+on   = "<C-t>"
+run  = "plugin kak-open -- tab"
+desc = "Open selected file(s) in Kakoune tab(s)"
+```
+
+*(You can also invoke `:yazi-vertical`, `:yazi-horizontal`, or `:yazi-tab` directly from Kakoune without modifying Yazi's config.)*
 
 ### Per-Project / Machine Overrides (`.kakrc.local`)
 
@@ -85,12 +132,8 @@ set-option global file_finder_cmd 'fd --hidden --exclude .git --type f'
 
 | Key | Action |
 | --- | --- |
-| `<space>f` | Open **Yazi** at current file (or cwd) |
-| `<space>F` | Open **Yazi** at cwd |
-| `<space>p` | Find files (`fzf` + `file_finder_cmd`, multi-select) |
-| `<space>P` | Find git-tracked files (`fzf`, multi-select) |
+| `<space>p` | Enter **project / picker** mode |
 | `<space>b` | Switch buffer (`fzf`) |
-| `<space>/` | Live search project (`rg` + `fzf`) |
 | `<space>c` | Toggle line comments |
 | `<space>o` | Open alternate file (`:alt`) |
 | `<space>y` | Yank selection to system clipboard |
@@ -98,6 +141,17 @@ set-option global file_finder_cmd 'fd --hidden --exclude .git --type f'
 | `<space>R` | Replace selection from system clipboard |
 | `<space>w` | Enter **window / split** mode |
 | `<space>l` | Enter **LSP** mode |
+
+### Project Mode (`<space>p`)
+
+| Key | Action |
+| --- | --- |
+| `f` | Find files (`fzf` + `file_finder_cmd`, multi-select; `:find` fallback) |
+| `F` | Find git-tracked files (`fzf`, multi-select) |
+| `g` | Live search project (`rg` + `fzf`; `:grep` fallback) |
+| `v` | Open **Yazi** at current file (or cwd) |
+| `V` | Open **Yazi** at cwd |
+| `b` | Switch buffer (`fzf`) |
 
 ### Window Mode (`<space>w`)
 

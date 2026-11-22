@@ -49,6 +49,10 @@ hook -group user-kitty global ModuleLoaded kitty %{
                     type_arg="overlay"
                     [ -n "$kitty_win_id" ] && match_arg="--match=window_id:$kitty_win_id"
                     ;;
+                tab)
+                    type_arg="tab"
+                    [ -n "$kitty_win_id" ] && match_arg="--match=window_id:$kitty_win_id"
+                    ;;
             esac
 
             set -- -- "$@"
@@ -88,8 +92,14 @@ hook -group user-kitty global ModuleLoaded kitty %{
         kitty-launch-ext popup %arg{@}
     }
 
+    define-command -override -params 1.. -shell-completion \
+        -docstring 'kitty-terminal-tab-ext <program> [<args>...]: open a program in a new Kitty tab' \
+        kitty-terminal-tab-ext %{
+        kitty-launch-ext tab %arg{@}
+    }
+
     alias global terminal-vertical kitty-terminal-vertical
     alias global terminal-horizontal kitty-terminal-horizontal
-    alias global terminal-tab kitty-terminal-tab
+    alias global terminal-tab kitty-terminal-tab-ext
     alias global terminal-popup kitty-terminal-popup
 }

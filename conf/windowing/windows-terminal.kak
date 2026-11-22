@@ -38,6 +38,9 @@ try %{
                 chmod 700 "$script"
                 {
                     printf '#!/bin/sh\n'
+                    if [ -n "$kak_session" ]; then
+                        printf 'export KAK_SESSION='; print_sh_quoted "$kak_session"; printf '\n'
+                    fi
                     printf 'export PATH='; print_sh_quoted "$PATH"; printf '\n'
                     if [ -n "$XDG_RUNTIME_DIR" ]; then
                         printf 'export XDG_RUNTIME_DIR='; print_sh_quoted "$XDG_RUNTIME_DIR"; printf '\n'
@@ -60,6 +63,16 @@ try %{
                         ;;
                     horizontal)
                         wt.exe -w 0 split-pane -H -- wsl.exe -d "$wsl_distro" -- "$script" >/dev/null 2>&1 &
+                        ;;
+                    drawer)
+                        drawer_pct="${kak_opt_windowing_drawer_size:-40}"
+                        case "$drawer_pct" in
+                            ''|*[!0-9]*) drawer_pct=40 ;;
+                        esac
+                        [ "$drawer_pct" -lt 10 ] && drawer_pct=10
+                        [ "$drawer_pct" -gt 90 ] && drawer_pct=90
+                        wt_drawer_size=$(printf '0.%02d' "$drawer_pct")
+                        wt.exe -w 0 split-pane -V --size "$wt_drawer_size" -- wsl.exe -d "$wsl_distro" -- "$script" >/dev/null 2>&1 &
                         ;;
                     tab)
                         wt.exe -w 0 new-tab -- wsl.exe -d "$wsl_distro" -- "$script" >/dev/null 2>&1 &
@@ -93,6 +106,12 @@ try %{
         }
 
         define-command -override -params 1.. -shell-completion \
+            -docstring 'wt-terminal-drawer <program> [<args>...]: open a program in a sized vertical Windows Terminal split' \
+            wt-terminal-drawer %{
+            wt-terminal-impl drawer %arg{@}
+        }
+
+        define-command -override -params 1.. -shell-completion \
             -docstring 'wt-terminal-tab <program> [<args>...]: open a program in a new Windows Terminal tab' \
             wt-terminal-tab %{
             wt-terminal-impl tab %arg{@}
@@ -113,6 +132,7 @@ try %{
         alias global terminal wt-terminal
         alias global terminal-vertical wt-terminal-vertical
         alias global terminal-horizontal wt-terminal-horizontal
+        alias global terminal-drawer wt-terminal-drawer
         alias global terminal-tab wt-terminal-tab
         alias global terminal-popup wt-terminal-popup
         alias global focus wt-focus

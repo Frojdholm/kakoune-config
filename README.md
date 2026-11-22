@@ -5,7 +5,7 @@ Modular, cross-platform Kakoune configuration designed to work natively with **W
 Built around Kakoune's native `provide-module` / `require-module` and `ModuleLoaded` pattern:
 - **`windowing_modules`** (`'windows-terminal' 'kitty'`) — built-in Kakoune auto-detection; loads only the matching terminal module.
 - **`clipboard_modules`** (`'clipboard-wsl' 'clipboard-macos' 'clipboard-wayland' 'clipboard-x11' 'clipboard-kitty'`) — first-match-wins clipboard backend detection on `KakBegin`.
-- **`tool_modules`** (`'yazi' 'fzf' 'lsp-config'`) — loads each optional tool module whose binary is available in `PATH` on `KakBegin`, activating its keybindings via `ModuleLoaded`.
+- **`tool_modules`** (`'yazi' 'fzf' 'review' 'lsp-config'`) — loads each optional tool module whose binary is available in `PATH` on `KakBegin`, activating its keybindings via `ModuleLoaded`.
 
 ## Layout
 
@@ -14,10 +14,10 @@ Built around Kakoune's native `provide-module` / `require-module` and `ModuleLoa
 ├── kakrc                              # Entry point; sources modules + .kakrc.local
 ├── conf/
 │   ├── options.kak                    # Colorscheme, UI, highlighters, soft-tabs (respects Go/Make), completion
-│   ├── windowing.kak                  # Sets windowing_modules + terminal-agnostic splits & :ide
+│   ├── windowing.kak                  # Sets windowing_modules + terminal-agnostic splits & tools drawer
 │   ├── windowing/
 │   │   ├── windows-terminal.kak       # provide-module windows-terminal (WSL 2 + wt.exe)
-│   │   └── kitty.kak                  # ModuleLoaded kitty (extends built-in kitty with vsplit/hsplit/overlay)
+│   │   └── kitty.kak                  # ModuleLoaded kitty (extends built-in kitty with vsplit/hsplit/drawer/overlay)
 │   ├── clipboard.kak                  # clipboard_modules detector + shared clipboard-register helper
 │   ├── clipboard/
 │   │   ├── wsl.kak                    # provide-module clipboard-wsl (win32yank.exe / clip.exe + powershell.exe)
@@ -29,9 +29,10 @@ Built around Kakoune's native `provide-module` / `require-module` and `ModuleLoa
 │   ├── tools/
 │   │   ├── helpers.kak                # Always-available helpers: :find, :git-edit, :kakrc-edit, :config-edit
 │   │   ├── yazi.kak                   # provide-module yazi
-│   │   └── fzf.kak                    # provide-module fzf (files, git files, buffers, live rg)
+│   │   ├── fzf.kak                    # provide-module fzf (files, git files, buffers, live rg)
+│   │   └── review.kak                 # provide-module review (`filetype=review` git diff drawer)
 │   ├── lsp.kak                        # provide-module lsp-config (kak-lsp, formatting, semantic tokens, Python)
-│   └── mappings.kak                   # Centralized mappings + ModuleLoaded hooks for yazi, fzf, lsp-config
+│   └── mappings.kak                   # Centralized mappings + ModuleLoaded hooks for yazi, fzf, review, lsp-config
 └── colors/
     └── catppuccin_mocha.kak           # Catppuccin Mocha colorscheme
 ```
@@ -40,7 +41,7 @@ Built around Kakoune's native `provide-module` / `require-module` and `ModuleLoa
 
 ### Linux / macOS — Kitty
 
-Kakoune's built-in `kitty` module (extended by [conf/windowing/kitty.kak](conf/windowing/kitty.kak)) uses Kitty remote control for native splits, overlays (`yazi`/`fzf`), tabs, and client focusing (`:focus` / `:ide`). Add to `~/.config/kitty/kitty.conf`:
+Kakoune's built-in `kitty` module (extended by [conf/windowing/kitty.kak](conf/windowing/kitty.kak)) uses Kitty remote control for native splits, drawers (`<space>wr`), overlays (`yazi`/`fzf`), tabs, and client focusing (`:focus`). Add to `~/.config/kitty/kitty.conf`:
 
 ```conf
 allow_remote_control socket-only
@@ -161,7 +162,11 @@ set-option global file_finder_cmd 'fd --hidden --exclude .git --type f'
 | `t` | New Kakoune client in new terminal tab |
 | `n` | New Kakoune client (auto split) |
 | `s` / `S` | New shell in vertical / horizontal split |
-| `i` | Set up IDE layout (`main` + `tools` clients) |
+| `r` | Toggle git diff review drawer (`*review*` in `tools` split) |
+| `R` | Open git diff review drawer against a ref (`:review <ref>`) |
+| `T` | Toggle vertical `tools` drawer |
+
+Inside `*review*` (`filetype=review`): `n`/`p` jump next/previous hunk in both the diff view and main client, `<ret>` jumps to the exact line under cursor & focuses main, `o` previews the exact line in main, `r` refreshes, and `q` (or `<space>wr`) closes the drawer.
 
 ### Goto Mode (`g`)
 
@@ -170,5 +175,6 @@ set-option global file_finder_cmd 'fd --hidden --exclude .git --type f'
 | `gN` / `gP` | Next / previous buffer |
 | `gb` | Switch buffer prompt |
 | `gn` / `gp` | Next / previous grep match |
+| `g]` / `g[` | Next / previous review hunk |
 | `gd` / `gr` / `gy` | LSP definition / references / type definition |
 | `go` / `gO` | LSP next / previous error |

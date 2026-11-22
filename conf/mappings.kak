@@ -29,7 +29,7 @@ map -docstring 'New tab (new client)' global window t ': new-tab<ret>'
 map -docstring 'New client (auto split)' global window n ': new<ret>'
 map -docstring 'Vertical shell split' global window s ': shell-vertical<ret>'
 map -docstring 'Horizontal shell split' global window S ': shell-horizontal<ret>'
-map -docstring 'IDE layout (main + tools)' global window i ': ide<ret>'
+map -docstring 'Toggle tools drawer' global window T ': tools-toggle<ret>'
 
 ## Core Goto Mode Mappings (g)
 
@@ -54,6 +54,13 @@ hook -group user-mappings global ModuleLoaded fzf %{
     map -docstring 'Search project (rg + fzf)' global project g ': fzf-grep<ret>'
     map -docstring 'Switch buffer (fzf)' global project b ': fzf-buffer<ret>'
     map -docstring 'Switch buffer (fzf)' global user b ': fzf-buffer<ret>'
+}
+
+hook -group user-mappings global ModuleLoaded review %{
+    map -docstring 'Toggle review drawer' global window r ': review-toggle<ret>'
+    map -docstring 'Review changes vs ref (prompt)' global window R ': review '
+    map global goto ']' '<esc>: review-next<ret>' -docstring 'next review hunk'
+    map global goto '[' '<esc>: review-prev<ret>' -docstring 'previous review hunk'
 }
 
 hook -group user-mappings global ModuleLoaded lsp-config %{

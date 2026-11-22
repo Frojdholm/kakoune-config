@@ -34,6 +34,7 @@ hook -group user-kitty global ModuleLoaded kitty %{
 
             type_arg="$kitty_type"
             loc_arg=""
+            bias_arg=""
             match_arg=""
 
             case "$mode" in
@@ -43,6 +44,17 @@ hook -group user-kitty global ModuleLoaded kitty %{
                     ;;
                 horizontal)
                     loc_arg="--location=hsplit"
+                    [ -n "$kitty_win_id" ] && match_arg="--match=window_id:$kitty_win_id"
+                    ;;
+                drawer)
+                    loc_arg="--location=vsplit"
+                    drawer_size="${kak_opt_windowing_drawer_size:-40}"
+                    case "$drawer_size" in
+                        ''|*[!0-9]*) drawer_size=40 ;;
+                    esac
+                    [ "$drawer_size" -lt 10 ] && drawer_size=10
+                    [ "$drawer_size" -gt 90 ] && drawer_size=90
+                    bias_arg="--bias=$drawer_size"
                     [ -n "$kitty_win_id" ] && match_arg="--match=window_id:$kitty_win_id"
                     ;;
                 popup)
@@ -56,11 +68,13 @@ hook -group user-kitty global ModuleLoaded kitty %{
             esac
 
             set -- -- "$@"
+            [ -n "$kak_session" ] && set -- "--env=KAK_SESSION=$kak_session" "$@"
             [ -n "$TMPDIR" ] && set -- "--env=TMPDIR=$TMPDIR" "$@"
             [ -n "$XDG_RUNTIME_DIR" ] && set -- "--env=XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" "$@"
             set -- "--env=PATH=$PATH" "$@"
             set -- "--cwd=$PWD" "$@"
             [ -n "$match_arg" ] && set -- "$match_arg" "$@"
+            [ -n "$bias_arg" ] && set -- "$bias_arg" "$@"
             [ -n "$loc_arg" ] && set -- "$loc_arg" "$@"
             set -- "--type=$type_arg" "$@"
 
@@ -87,6 +101,12 @@ hook -group user-kitty global ModuleLoaded kitty %{
     }
 
     define-command -override -params 1.. -shell-completion \
+        -docstring 'kitty-terminal-drawer <program> [<args>...]: open a program in a sized vertical Kitty drawer split' \
+        kitty-terminal-drawer %{
+        kitty-launch-ext drawer %arg{@}
+    }
+
+    define-command -override -params 1.. -shell-completion \
         -docstring 'kitty-terminal-popup <program> [<args>...]: open a program in a Kitty overlay' \
         kitty-terminal-popup %{
         kitty-launch-ext popup %arg{@}
@@ -100,6 +120,7 @@ hook -group user-kitty global ModuleLoaded kitty %{
 
     alias global terminal-vertical kitty-terminal-vertical
     alias global terminal-horizontal kitty-terminal-horizontal
+    alias global terminal-drawer kitty-terminal-drawer
     alias global terminal-tab kitty-terminal-tab-ext
     alias global terminal-popup kitty-terminal-popup
 }

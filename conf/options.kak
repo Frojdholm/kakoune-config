@@ -12,11 +12,14 @@ set-option global scrolloff 8,8
 try %{ remove-highlighter global/number-lines }
 add-highlighter global/number-lines number-lines -hlcursor -separator '  '
 
-# Optional highlighters / git diff indicators (uncomment to enable)
+# Optional highlighters / git diff indicators
 try %{ remove-highlighter global/show-matching }
 add-highlighter global/show-matching show-matching
-hook global WinCreate ^[^*].*[^*]$ %{ git show-diff }
-hook global BufWritePost ^[^*].*[^*]$ %{ git update-diff }
+
+remove-hooks global user-git-diff
+hook -group user-git-diff global WinCreate ^[^*].*[^*]$ %{ try %{ git show-diff } }
+hook -group user-git-diff global BufWritePost ^[^*].*[^*]$ %{ try %{ git update-diff } }
+hook -group user-git-diff global BufReload ^[^*].*[^*]$ %{ try %{ git update-diff } }
 
 ## Search
 

@@ -10,6 +10,11 @@ source "%val{config}/conf/windowing/kitty.kak"
 
 set-option global windowing_modules 'windows-terminal' 'kitty'
 
+try %{
+    declare-option -docstring 'Percentage width (10-90) for vertical drawer splits (tools/review)' \
+        int windowing_drawer_size 40
+}
+
 ## Terminal-Agnostic Split & Layout Helpers
 
 define-command -override -params .. -command-completion \
@@ -75,11 +80,69 @@ define-command -override -docstring 'Open a shell in a horizontal (stacked) spli
     }
 }
 
-define-command -override -docstring 'Set up IDE layout with main (jump) and tools/docs clients' ide %{
-    rename-client main
-    set-option global jumpclient main
+## Ephemeral Tools Drawer
 
-    split-vertical rename-client tools
-    set-option global toolsclient tools
-    set-option global docsclient tools
+remove-hooks global user-windowing
+
+hook -group user-windowing global ClientClose tools %{
+    set-option global toolsclient ''
+    set-option global docsclient ''
+}
+
+define-command -override -params ..1 \
+    -docstring 'tools-open [<commands>]: open or reuse the vertical tools drawer client' \
+    tools-open %{
+    evaluate-commands %sh{
+        cmd=$1
+
+        if [ "$kak_client" != "tools" ]; then
+            esc_client=$(printf '%s' "$kak_client" | sed "s/'/''/g")
+            printf "set-option global jumpclient '%s'\n" "$esc_client"
+        fi
+        printf "set-option global toolsclient tools\n"
+        printf "set-option global docsclient tools\n"
+
+        has_tools=0
+        eval "set -- $kak_quoted_client_list"
+        for c in "$@"; do
+            if [ "$c" = "tools" ]; then
+                has_tools=1
+                break
+            fi
+        done
+
+        if [ "$has_tools" -eq 1 ]; then
+            if [ -n "$cmd" ]; then
+                esc_cmd=$(printf '%s' "$cmd" | sed "s/'/''/g")
+                printf "evaluate-commands -client tools '%s'\n" "$esc_cmd"
+            fi
+            printf "try %%{ focus tools }\n"
+        else
+            init_cmd='rename-client tools'
+            if [ -n "$cmd" ]; then
+                init_cmd="$init_cmd; $cmd"
+            fi
+            esc_init=$(printf '%s' "$init_cmd" | sed "s/'/''/g")
+            printf "terminal-drawer kak -c %%val{session} -e '%s'\n" "$esc_init"
+        fi
+    }
+}
+
+define-command -override -docstring 'Close the tools drawer client if open' \
+    tools-close %{
+    try %{
+        evaluate-commands -client tools quit
+    } catch %{
+        set-option global toolsclient ''
+        set-option global docsclient ''
+    }
+}
+
+define-command -override -docstring 'Toggle the vertical tools drawer client' \
+    tools-toggle %{
+    try %{
+        evaluate-commands -client tools quit
+    } catch %{
+        tools-open
+    }
 }

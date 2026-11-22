@@ -6,7 +6,7 @@
 
 try %{
     declare-option -docstring 'List of optional tool modules to load if their binaries are available' \
-        str-list tool_modules 'yazi' 'fzf' 'lsp-config'
+        str-list tool_modules 'yazi' 'fzf' 'review' 'lsp-config'
 }
 
 try %{
@@ -28,6 +28,7 @@ evaluate-commands %sh{
 source "%val{config}/conf/tools/helpers.kak"
 source "%val{config}/conf/tools/yazi.kak"
 source "%val{config}/conf/tools/fzf.kak"
+source "%val{config}/conf/tools/review.kak"
 
 remove-hooks global tool-detection
 
@@ -36,7 +37,7 @@ hook -group tool-detection global KakBegin .* %{
         eval "set -- $kak_quoted_opt_tool_modules"
         for mod in "$@"; do
             esc=$(printf '%s' "$mod" | sed "s/'/''/g")
-            printf "try %%{ require-module '%s' } catch %%{ echo -debug 'tool module %s not loaded' }\n" "$esc" "$esc"
+            printf "try %%{ require-module '%s' } catch %%{ echo -debug \"tool module %s not loaded: %%val{error}\" }\n" "$esc" "$esc"
         done
     }
 }

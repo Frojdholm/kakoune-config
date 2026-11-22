@@ -3,6 +3,45 @@
 
 colorscheme catppuccin_mocha
 
+## Cross-Platform Terminal Abstraction (WSL 2 / Ghostty / tmux)
+
+define-command -hidden -params 1.. cross-terminal %{
+    nop %sh{
+        script=$(mktemp "${TMPDIR:-/tmp}/kak-term.XXXXXX")
+        esc_pwd=$(printf '%s' "$PWD" | sed "s/'/'\\\\''/g")
+        {
+            printf '#!/bin/sh\n'
+            printf "rm -f '%s'\n" "$script"
+            printf "cd '%s' || exit 1\n" "$esc_pwd"
+            printf 'exec'
+            for arg in "$@"; do
+                esc_arg=$(printf '%s' "$arg" | sed "s/'/'\\\\''/g")
+                printf " '%s'" "$esc_arg"
+            done
+            printf '\n'
+        } > "$script"
+        chmod +x "$script"
+
+        if [ -n "$WSL_DISTRO_NAME" ] && command -v wt.exe >/dev/null 2>&1; then
+            # Windows Terminal native split inside the current window
+            wt.exe -w 0 split-pane wsl.exe -d "$WSL_DISTRO_NAME" -- "$script" >/dev/null 2>&1 &
+        elif [ -n "$kak_client_env_TMUX" ]; then
+            TMUX="$kak_client_env_TMUX" tmux split-window -h "$script"
+        elif command -v ghostty >/dev/null 2>&1; then
+            ghostty -e "$script" >/dev/null 2>&1 &
+        elif [ -x "/Applications/Ghostty.app/Contents/MacOS/ghostty" ]; then
+            /Applications/Ghostty.app/Contents/MacOS/ghostty -e "$script" >/dev/null 2>&1 &
+        else
+            xterm -e "$script" >/dev/null 2>&1 &
+        fi
+    }
+}
+
+# Override after Kakoune's built-in windowing auto-detection runs
+hook global KakBegin .* %{
+    alias global terminal cross-terminal
+}
+
 ## Commands
 
 define-command ide %{
@@ -15,63 +54,54 @@ define-command ide %{
 }
 
 define-command find -params 1 -shell-script-candidates %{ find . -type f } %{ edit %arg{1} }
-
 define-command git-edit -params 1 -shell-script-candidates %{ git ls-files } %{ edit %arg{1} }
 
-define-command -docstring "Open files with fzf using find" -params 0 fzf-find-edit %{
-    evaluate-commands %sh{
-        if [ -z "$kak_client_env_TMUX" ]; then
-            printf "fail 'client is not started in tmux'\n"
-        else
-            file=$(fd . --type f | TMUX="$kak_client_env_TMUX" fzf-tmux -d 15)
-            if [ -n "$file" ]; then
-                printf "edit '%s'\n" "$file"
-            fi
+# Shared fzf picker: %arg{1} = candidate command, %arg{2} = kakoune command
+define-command -hidden fzf-pick -params 2 %{
+    terminal sh -c %{
+        sel=$(eval "$1" | fzf)
+        if [ -n "$sel" ]; then
+            escaped=$(printf '%s' "$sel" | sed "s/'/''/g")
+            printf "evaluate-commands -client '%s' %s -- '%s'\n" "$3" "$2" "$escaped" | kak -p "$4"
         fi
-    }
+    } _ %arg{1} %arg{2} %val{client} %val{session}
 }
 
-define-command -docstring "Open files with fzf" -params 0 fzf-edit %{
-    evaluate-commands %sh{
-        if [ -z "$kak_client_env_TMUX" ]; then
-            printf "fail 'client is not started in tmux'\n"
-        else
-            file=$(git ls-files | TMUX="$kak_client_env_TMUX" fzf-tmux -d 15)
-            if [ -n "$file" ]; then
-                printf "edit '%s'\n" "$file"
-            fi
+define-command -docstring "Open files with fzf using fd" fzf-find-edit %{
+    fzf-pick 'fd . --type f' 'edit'
+}
+
+define-command -docstring "Open git-tracked files with fzf" fzf-edit %{
+    fzf-pick 'git ls-files' 'edit'
+}
+
+define-command -hidden fzf-buffer-open -params 1 %{
+    terminal sh -c %{
+        sel=$(fzf --read0 < "$1")
+        rm -f "$1"
+        if [ -n "$sel" ]; then
+            escaped=$(printf '%s' "$sel" | sed "s/'/''/g")
+            printf "evaluate-commands -client '%s' buffer -- '%s'\n" "$2" "$escaped" | kak -p "$3"
         fi
-    }
+    } _ %arg{1} %val{client} %val{session}
 }
 
 define-command -docstring "Select buffer with fzf" fzf-buffer %{
     evaluate-commands %sh{
-        if [ -z "$kak_client_env_TMUX" ]; then
-            printf "fail 'client is not started in tmux'\n"
-        else
-            BUFFER=$(
-                (
-                    eval "set -- $kak_buflist"
-                    while [ $# -gt 0 ]; do
-                        printf "%s\0" "$1"
-                        shift
-                    done
-                ) | fzf-tmux -d 15 --read0
-            )
-            if [ -n "$BUFFER" ]; then
-                printf "buffer '%s'\n" "${BUFFER}"
-            fi
-        fi
+        tmp=$(mktemp "${TMPDIR:-/tmp}/kak-bufs.XXXXXX")
+        eval "set -- $kak_quoted_buflist"
+        for buf in "$@"; do
+            printf '%s\0' "$buf"
+        done > "$tmp"
+        printf "fzf-buffer-open '%s'\n" "$tmp"
     }
 }
 
 define-command nnn %{
-    nop %sh{
-        tmux split-window -f -h -b -l 36 "KAK_CLIENT=$kak_client KAK_SESSION=$kak_session VISUAL=open-in-kak nnn -Se -s $kak_session"
-    }
+    terminal env "KAK_CLIENT=%val{client}" "KAK_SESSION=%val{session}" VISUAL=open-in-kak nnn -Se -s %val{session}
 }
 
-define-command kakrc-edit %{ edit "~/.config/kak/kakrc" }
+define-command kakrc-edit %{ edit "%val{config}/kakrc" }
 
 ## Options
 
@@ -84,23 +114,12 @@ set-option global tabstop 4
 
 # Convert inserted tab to tabstop spaces
 hook global InsertChar \t %{ execute-keys -draft h@ }
-# This hook:
-# h                 - Move one step to the left to move into indent space
-# <a-h>             - Select all indent region
-# <a-k>\A\h+\z<ret> - Keep only whitespace
-# i<space>          - Insert the deleted space
-# <esc>             - Back to normal mode
-# <lt>              - dedent one indentwidth
 hook global InsertDelete ' ' %{
     try %{ execute-keys -draft 'h<a-h><a-k>\A\h+\z<ret>i<space><esc><lt>' }
 }
 
 hook global InsertCompletionShow .* %{
     try %{
-        # this command temporarily removes cursors preceded by whitespace;
-        # if there are no cursors left, it raises an error, does not
-        # continue to execute the mapping commands, and the error is eaten
-        # by the `try` command so no warning appears.
         execute-keys -draft 'h<a-K>\h<ret>'
         map window insert <tab> <c-n>
         map window insert <s-tab> <c-p>
@@ -114,8 +133,6 @@ hook global InsertCompletionShow .* %{
 # hook global WinCreate ^[^*].*[^*]$ %{ git show-diff }
 # hook global BufWritePost ^[^*].*[^*]$ %{ git update-diff }
 
-# set-option global windowing_placement horizontal
-
 add-highlighter global/ number-lines -hlcursor
 # add-highlighter global/ show-matching
 
@@ -123,16 +140,41 @@ hook global BufCreate (.*/)?(\.kakrc\.local) %{
     set-option buffer filetype kak
 }
 
+## Cross-Platform Clipboard (<space>y)
+
+evaluate-commands %sh{
+    if [ -n "$WSL_DISTRO_NAME" ]; then
+        if command -v win32yank.exe >/dev/null 2>&1; then
+            cmd="win32yank.exe -i --crlf"
+        else
+            cmd="clip.exe"
+        fi
+    elif [ "$(uname -s)" = "Darwin" ]; then
+        cmd="pbcopy"
+    elif [ -n "$WAYLAND_DISPLAY" ] && command -v wl-copy >/dev/null 2>&1; then
+        cmd="wl-copy"
+    elif command -v xclip >/dev/null 2>&1; then
+        cmd="xclip -i -selection clipboard"
+    elif command -v xsel >/dev/null 2>&1; then
+        cmd="xsel -b -i"
+    fi
+
+    if [ -n "$cmd" ]; then
+        printf "map -docstring 'Yank to the system clipboard' global user y '<a-|>%s<ret>'\n" "$cmd"
+    fi
+}
+
 ## User mappings
+
 map -docstring "Open file browser" global user f ": nnn<ret>"
 map global normal <c-p> ": find "
 
-map -docstring "Toggle comments on the selection"  global user c ": comment-line<ret>"
+map -docstring "Toggle comments on the selection" global user c ": comment-line<ret>"
 map -docstring "Access alt file" global user o ": alt<ret>"
 
-map -docstring "Yank to the system clipboard" global user y "<a-|>xclip -i -selection clipboard<ret>"
-
-map global user p ': find-edit ' -docstring 'Find files'
+map -docstring "Find files (fzf)" global user p ": fzf-find-edit<ret>"
+map -docstring "Find git files (fzf)" global user P ": fzf-edit<ret>"
+map -docstring "Switch buffer (fzf)" global user b ": fzf-buffer<ret>"
 
 map global goto N '<esc>: buffer-next<ret>' -docstring 'next buffer'
 map global goto P '<esc>: buffer-previous<ret>' -docstring 'previous buffer'
@@ -177,7 +219,6 @@ hook -group lsp-filetype-python global BufSetOption filetype=python %{
         fixAll = true
     }
 }
-
 
 set-option global modelinefmt "%opt{lsp_modeline} %opt{modelinefmt}"
 
